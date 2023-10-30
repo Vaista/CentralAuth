@@ -18,7 +18,7 @@ class User(models.Model):
 class App(models.Model):
     """Model for applications"""
     name = models.CharField(max_length=50, unique=True)
-    key = models.CharField(max_length=256, blank=False)
+    key = models.CharField(max_length=256, blank=False, unique=True)
     active = models.BooleanField(default=True)
 
     def __str__(self):

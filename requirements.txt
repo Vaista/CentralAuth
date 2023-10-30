@@ -1,8 +1,12 @@
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0
 asgiref==3.7.2
 backports.zoneinfo==0.2.1
+cffi==1.16.0
 Django==4.2.6
 protobuf==4.21.12
 psycopg==3.1.12
+pycparser==2.21
 PyJWT==2.8.0
 python-dotenv==1.0.0
 sqlparse==0.4.4
