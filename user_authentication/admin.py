@@ -3,7 +3,6 @@ from django.contrib import admin
 from .models import User as Users, App, UserAppAccess
 
 
-admin.site.unregister(User)
 admin.site.unregister(Group)
 
 
@@ -19,5 +18,4 @@ class AppAdmin(admin.ModelAdmin):
 
 @admin.register(UserAppAccess)
 class UserAppAccessAdmin(admin.ModelAdmin):
-    list_display = ['user', 'app', 'first_access', 'last_access', 'token_expiration',
-                    'logged_in', 'active']
+    list_display = ['user', 'app', 'first_access', 'last_access', 'active']
