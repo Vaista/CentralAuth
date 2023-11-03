@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.contrib.auth import login
 from django.utils import timezone
 from .helper import valid_email, valid_password, decode_jwt
-from user_authentication.models import User, App, UserAppAccess
+from .models import User, App, UserAppAccess
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 import jwt
@@ -47,7 +47,7 @@ def login_request(request):
     if app.active is False:
         return JsonResponse({'data': {'status': 'error', 'reason': 'app inactive'}}, status=400)
 
-    user_app_access = UserAppAccess.objects.filter(user=user, app=app).first()
+    user_app_access = UserAppAccess.obects.filter(user=user, app=app).first()
     if user_app_access is None:
         return JsonResponse({'data': {'status': 'error', 'reason': 'user account not created'}}, status=400)
 
