@@ -3,7 +3,7 @@ from django.core.mail import send_mail
 from django.contrib.auth.models import PermissionsMixin
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.base_user import BaseUserManager
-from django.utils import timezone
+from datetime import datetime, timedelta
 import secrets
 
 
@@ -26,7 +26,7 @@ class UserManager(BaseUserManager):
             valid_token = secrets.token_hex(32)
 
         user.valid_token = valid_token
-        user.token_expiration = timezone.now() + timezone.timedelta(minutes=15)
+        user.token_expiration = datetime.now() + timedelta(minutes=15)
         user.save(using=self._db)
         return user
 
@@ -51,7 +51,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     password = models.CharField('Password', max_length=256)
     valid_token = models.CharField(max_length=255, unique=True)
     token_expiration = models.DateTimeField()
-    created_on = models.DateTimeField(default=timezone.now)
+    created_on = models.DateTimeField(default=datetime.now)
     active = models.BooleanField('Active', default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -95,7 +95,7 @@ class UserAppAccess(models.Model):
     """Model for User access to different apps"""
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     app = models.ForeignKey(App, on_delete=models.CASCADE)
-    first_access = models.DateTimeField('Access Since', default=timezone.now)
+    first_access = models.DateTimeField('Access Since', default=datetime.now)
     last_access = models.DateTimeField('Last Activity')
     active = models.BooleanField('Active', default=True)
 

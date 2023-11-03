@@ -1,6 +1,7 @@
-from django.http import JsonResponse
 from django.conf import settings
-from django.utils import timezone
+from django.http import JsonResponse
+from django.contrib.auth import authenticate, login
+from datetime import datetime, timedelta
 from .helper import valid_email, valid_password
 from user_authentication.models import User, App, UserAppAccess
 from argon2 import PasswordHasher
@@ -112,6 +113,7 @@ def signup_request(request):
         return JsonResponse({'data': {'status': 'error', 'error': 'invalid password'}}, status=400)
 
     user = User.objects.filter(email=email).first()
+
     if user is not None:
         user_app_access = UserAppAccess.objects.filter(
             user=user,
@@ -123,27 +125,38 @@ def signup_request(request):
         # Generate Hashed Password with Argon 2
         p_hash = ph.hash(password=password)
 
-        # Save to database
-        user = User.objects.create(first_name=first_name, last_name=last_name, email=email, password=p_hash)
-        user.save()
-
-        used_tokens = [x.valid_token for x in UserAppAccess.objects.all()]
+        # Create user tokens
+        used_tokens = [x.valid_token for x in User.objects.all()]
         valid_token = secrets.token_hex(64)
         while valid_token in used_tokens:
             valid_token = secrets.token_hex(64)
-        token_expiration = timezone.now() + timezone.timedelta(minutes=15)
+        token_expiration = datetime.now() + timedelta(minutes=15)
 
-        # Create a UserAppAccess instance to assign the app to the user
-        user_app_access = UserAppAccess.objects.create(
-            user=user,
-            app=app,
-            valid_token=valid_token,
-            token_expiration=token_expiration,
-            first_access=timezone.now(),
-            last_access=timezone.now(),
-            logged_in=True,
-            active=True
-        )
-        user_app_access.save()
+        # Save to database
+        user = User.objects.create(first_name=first_name, last_name=last_name, email=email, password=p_hash,
+                                   valid_token=valid_token, token_expiration=token_expiration)
+        user.save()
 
-        return JsonResponse({'data': {'status': 'ok', }}, status=200)
+    # Create a UserAppAccess instance to assign the app to the user
+    user_app_access = UserAppAccess.objects.create(
+        user=user,
+        app=app,
+        first_access=datetime.now(),
+        last_access=datetime.now(),
+        active=True
+    )
+
+    user_app_access.save()
+    login(request, user)
+
+    user_data = {
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'token': user.valid_token,
+        'token_expiration': user.token_expiration.isoformat()
+    }
+
+    encoded_jwt = jwt.encode(user_data, settings.PROJECT_SECRET, algorithm="HS256")
+
+    return JsonResponse({'data': {'status': 'ok', 'token': encoded_jwt}}, status=200)

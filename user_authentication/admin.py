@@ -1,4 +1,4 @@
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group
 from django.contrib import admin
 from .models import User as Users, App, UserAppAccess
 
