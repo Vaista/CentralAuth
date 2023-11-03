@@ -106,7 +106,7 @@ PASSWORD_HASHERS = [
 
 # Session Time
 SESSION_TIME = os.environ.get('USER_SESSION_TIME', 15)
-if SESSION_TIME.isdigit():
+if isinstance(SESSION_TIME, str):
     SESSION_TIME = int(SESSION_TIME)
 
 # Internationalization
