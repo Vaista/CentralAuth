@@ -104,6 +104,10 @@ PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.ScryptPasswordHasher",
 ]
 
+# Session Time
+SESSION_TIME = os.environ.get('USER_SESSION_TIME', 15)
+if SESSION_TIME.isdigit():
+    SESSION_TIME = int(SESSION_TIME)
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/

@@ -1,5 +1,6 @@
 import re
-
+import jwt
+from django.conf import settings
 
 
 def valid_email(email):
@@ -35,3 +36,15 @@ def valid_password(password):
 
     # If all criteria are met, the password is valid
     return True
+
+
+def decode_jwt(incoming_token=None):
+    """Accepts token and returns the decoded data"""
+    # Get JWT Token
+    token = incoming_token
+    if not token:
+        # If token is missing
+        return None
+    # Decode the JWT Token with Project Secret Key
+    data = jwt.decode(token, settings.PROJECT_SECRET, algorithms=["HS256"])
+    return data

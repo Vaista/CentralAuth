@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.http import JsonResponse
-from django.contrib.auth import authenticate, login
-from datetime import datetime, timedelta
-from .helper import valid_email, valid_password
+from django.contrib.auth import login
+from django.utils import timezone
+from .helper import valid_email, valid_password, decode_jwt
 from user_authentication.models import User, App, UserAppAccess
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -26,7 +26,7 @@ def login_request(request):
     app_token = data.get('app_token')
 
     if app_token is None:
-        return JsonResponse({'data': {'status': 'error', 'reason': 'token is missing'}}, status=400)
+        return JsonResponse({'data': {'status': 'error', 'reason': 'app token missing'}}, status=400)
 
     if email is None:
         return JsonResponse({'data': {'status': 'error', 'reason': 'email missing'}}, status=400)
@@ -53,6 +53,9 @@ def login_request(request):
 
     if user_app_access.active is True:
 
+        user_app_access.last_access = timezone.now()
+        user_app_access.save()
+
         try:
             ph.verify(user.password, password)
             if ph.check_needs_rehash(user.password):
@@ -61,7 +64,27 @@ def login_request(request):
         except VerifyMismatchError:
             return JsonResponse({'data': {'status': 'error', 'reason': 'incorrect password'}}, status=400)
 
-        return JsonResponse({'status': 'ok'})
+        # Create and return JWT Token
+        used_tokens = [x.valid_token for x in User.objects.all()]
+        valid_token = secrets.token_hex(64)
+        while valid_token in used_tokens:
+            valid_token = secrets.token_hex(64)
+        token_expiration = timezone.now() + timezone.timedelta(minutes=int(settings.SESSION_TIME))
+        user.token_expiration = token_expiration
+        user.save()
+
+        user_data = {
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'token': user.valid_token,
+            'token_expiration': user.token_expiration.isoformat()
+        }
+
+        encoded_jwt = jwt.encode(user_data, settings.PROJECT_SECRET, algorithm="HS256")
+
+        return JsonResponse({'data': {'status': 'ok', 'token': encoded_jwt}}, status=200)
+
     else:
         return JsonResponse({'data': {'status': 'error', 'reason': 'access revoked'}}, status=400)
 
@@ -130,7 +153,7 @@ def signup_request(request):
         valid_token = secrets.token_hex(64)
         while valid_token in used_tokens:
             valid_token = secrets.token_hex(64)
-        token_expiration = datetime.now() + timedelta(minutes=15)
+        token_expiration = timezone.now() + timezone.timedelta(minutes=int(settings.SESSION_TIME))
 
         # Save to database
         user = User.objects.create(first_name=first_name, last_name=last_name, email=email, password=p_hash,
@@ -141,8 +164,8 @@ def signup_request(request):
     user_app_access = UserAppAccess.objects.create(
         user=user,
         app=app,
-        first_access=datetime.now(),
-        last_access=datetime.now(),
+        first_access=timezone.now(),
+        last_access=timezone.now(),
         active=True
     )
 
@@ -155,6 +178,55 @@ def signup_request(request):
         'last_name': user.last_name,
         'token': user.valid_token,
         'token_expiration': user.token_expiration.isoformat()
+    }
+
+    encoded_jwt = jwt.encode(user_data, settings.PROJECT_SECRET, algorithm="HS256")
+
+    return JsonResponse({'data': {'status': 'ok', 'token': encoded_jwt}}, status=200)
+
+
+def authenticate_user(request):
+    """Validate if the user is still authenticated. Returns True if user is logged in."""
+    token = request.GET.get('data')
+    data = decode_jwt(token)
+    if token is None:
+        return JsonResponse({'status': 'error'}, status=400)
+    user_token = data.get('user_token')
+    app_token = data.get('app_token')
+
+    if (not user_token) or (not app_token):
+        return JsonResponse({'status': 'error'}, status=400)
+
+    user = User.objects.filter(valid_token=user_token).first()
+    app = App.objects.filter(key=app_token).first()
+
+    if (not user) or (not app):
+        return JsonResponse({'status': 'error'}, status=400)
+
+    if (user.active is False) or (app.active is False):
+        return JsonResponse({'status': 'error'}, status=400)
+
+    user_app_access = UserAppAccess.objects.filter(app=app, user=user).first()
+
+    if (user_app_access is None) or (user_app_access.active is False):
+        return JsonResponse({'status': 'error'}, status=400)
+
+    if user.token_expiration < timezone.now():
+        # Token has expired
+        return JsonResponse({'data': {'status': 'token_expired'}}, status=200)
+
+    user.token_expiration = timezone.now() + timezone.timedelta(minutes=int(settings.SESSION_TIME))
+    user.last_login = timezone.now()
+    user_app_access.last_access = timezone.now()
+
+    user.save()
+    user_app_access.save()
+
+    user_data = {
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'token': user.valid_token,
     }
 
     encoded_jwt = jwt.encode(user_data, settings.PROJECT_SECRET, algorithm="HS256")
