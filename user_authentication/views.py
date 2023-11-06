@@ -47,7 +47,7 @@ def login_request(request):
     if app.active is False:
         return JsonResponse({'data': {'status': 'error', 'reason': 'app inactive'}}, status=400)
 
-    user_app_access = UserAppAccess.obects.filter(user=user, app=app).first()
+    user_app_access = UserAppAccess.objects.filter(user=user, app=app).first()
     if user_app_access is None:
         return JsonResponse({'data': {'status': 'error', 'reason': 'user account not created'}}, status=400)
 
@@ -232,3 +232,28 @@ def authenticate_user(request):
     encoded_jwt = jwt.encode(user_data, settings.PROJECT_SECRET, algorithm="HS256")
 
     return JsonResponse({'data': {'status': 'ok', 'token': encoded_jwt}}, status=200)
+
+
+def logout_user(request):
+    """Logs out the logged-in user"""
+    token = request.GET.get('data')
+    data = decode_jwt(token)
+    if token is None:
+        return JsonResponse({'status': 'error'}, status=400)
+    user_token = data.get('user_token')
+    app_token = data.get('app_token')
+
+    if (not user_token) or (not app_token):
+        return JsonResponse({'status': 'error'}, status=400)
+
+    user = User.objects.filter(valid_token=user_token).first()
+    app = App.objects.filter(key=app_token).first()
+
+    if (not user) or (not app):
+        return JsonResponse({'status': 'error'}, status=400)
+
+    user.token_expiration = timezone.now()
+    user.last_login = timezone.now()
+    user.save()
+
+    return JsonResponse({'data': {'status': 'ok'}}, status=200)
